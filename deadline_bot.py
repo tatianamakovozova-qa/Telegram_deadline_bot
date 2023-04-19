@@ -89,7 +89,6 @@ def main():
         states={
             DATE: [MessageHandler(Filters.regex("^\d{4}-\d{2}-\d{2}$"), get_date)],
             TIME: [MessageHandler(Filters.regex("^\d{2}:\d{2}$"), get_time)],
-            TIMEZONE: [MessageHandler(Filters.text, get_timezone)],
             DESCRIPTION: [MessageHandler(Filters.text, get_description)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
