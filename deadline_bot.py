@@ -1,48 +1,64 @@
-# подключение библиотек
-# В google colab добавить: !pip install python-telegram-bot==13.15 APScheduler
+# подключение библиотек:
+# В google colab добавить: !pip install python-telegram-bot==13.15
+# В google colab добавить: !pip install APScheduler
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
 from apscheduler.schedulers.background import BackgroundScheduler
 import time
 
-# Введите ваш токен API здесь
-API_TOKEN = "api_token"
+# Замените YOUR_API_TOKEN на ваш API-токен от BotFather
+API_TOKEN = "API_TOKEN"
 
-# Настройка журналирования
+# Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Словарь для хранения дедлайнов
 deadlines = {}
 
-# Константы для состояний ConversationHandler
 DATE, TIME, DESCRIPTION = range(3)
 
-# Команда /start
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Привет! Я бот-напоминалка о дедлайнах. Используйте /set, чтобы добавить новый дедлайн.")
+    update.message.reply_text("Привет! Я бот-напоминалка о дедлайнах. \nИспользуйте /set, чтобы добавить новый дедлайн. \n\nЧтобы отменить дедлайн используйте команду /cancel")
     with open("sticker.webp", "rb") as sti:
         context.bot.send_sticker(chat_id=update.effective_chat.id, sticker=sti)
 
-# Команда /set
 def set_deadline(update: Update, context: CallbackContext):
-    update.message.reply_text("Ориентируйтесь, пожалуйста, на время сервера! Введите дату дедлайна в формате YYYY-MM-DD:")
-    update.message.reply_text(time.tzname)
-    update.message.reply_text(str(datetime.now()))
+    update.message.reply_text("Введите дату дедлайна в формате YYYY-MM-DD:")
     return DATE
 
 def get_date(update: Update, context: CallbackContext):
-    date_str = update.message.text
-    context.user_data["date"] = date_str
-    update.message.reply_text("Введите время дедлайна в формате HH:mm:")
+    user_text = update.message.text.strip()
+    try:
+        input_date = datetime.strptime(user_text, "%Y-%m-%d").date()
+    except ValueError:
+        update.message.reply_text("Неверный формат даты. Введите дату дедлайна в формате YYYY-MM-DD:")
+        return DATE
+
+    today = date.today()
+    if input_date < today:
+        update.message.reply_text("Дата должна быть в будущем. Введите новую дату дедлайна в формате YYYY-MM-DD:")
+        return DATE
+
+    context.user_data["date"] = user_text
+    update.message.reply_text("Ориентируйтесь, пожалуйста, на время сервера! \nВведите время дедлайна в формате HH:mm (24-часовой формат):")
+    update.message.reply_text(str(datetime.now()))
     return TIME
 
 def get_time(update: Update, context: CallbackContext):
     time_str = update.message.text
     context.user_data["time"] = time_str
+
+    date_str = context.user_data["date"]
+    deadline_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+
+    now = datetime.now()
+    if deadline_time <= now:
+        update.message.reply_text("Время должно быть в будущем. \nПожалуйста, установите новое время дедлайна в формате HH:mm (24-часовой формат):")
+        return TIME
+
     update.message.reply_text("Введите описание дедлайна:")
     return DESCRIPTION
 
@@ -53,6 +69,12 @@ def get_description(update: Update, context: CallbackContext):
     time_str = context.user_data["time"]
 
     deadline_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+
+    now = datetime.now()
+    if deadline_time <= now:
+        update.message.reply_text("Время должно быть в будущем. Пожалуйста, установите новый дедлайн.")
+        return DATE
+
     deadlines[chat_id] = (deadline_time, description)
 
     update.message.reply_text(f"Дедлайн установлен на {deadline_time} с описанием: {description}")
@@ -67,11 +89,9 @@ def cancel(update: Update, context: CallbackContext):
 def set_reminder(context: CallbackContext, chat_id: int, deadline_time: datetime, description: str):
     job_queue = context.job_queue
 
-    # Напоминание за день до
     reminder_time = deadline_time - timedelta(days=1)
     job_queue.run_once(send_reminder, reminder_time, context=(chat_id, f"Завтра дедлайн: {description}"))
 
-    # Напоминание за 10 минут до дедлайна
     reminder_time = deadline_time - timedelta(minutes=10)
     job_queue.run_once(send_reminder, reminder_time, context=(chat_id, f"Осталось 10 минут до дедлайна: {description}"))
 
@@ -102,3 +122,4 @@ def main():
     
 if __name__ == "__main__":
     main()
+
