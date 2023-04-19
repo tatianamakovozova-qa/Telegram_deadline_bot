@@ -16,15 +16,18 @@ API_TOKEN = "API_TOKEN"
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Словарь для хранения дедлайнов
 deadlines = {}
 
 DATE, TIME, DESCRIPTION = range(3)
 
+# Команда /start
 def start(update: Update, context: CallbackContext):
     update.message.reply_text("Привет! Я бот-напоминалка о дедлайнах. \nИспользуйте /set, чтобы добавить новый дедлайн. \n\nЧтобы отменить дедлайн используйте команду /cancel")
     with open("sticker.webp", "rb") as sti:
         context.bot.send_sticker(chat_id=update.effective_chat.id, sticker=sti)
 
+# Команда /set
 def set_deadline(update: Update, context: CallbackContext):
     update.message.reply_text("Введите дату дедлайна в формате YYYY-MM-DD:")
     return DATE
@@ -89,9 +92,11 @@ def cancel(update: Update, context: CallbackContext):
 def set_reminder(context: CallbackContext, chat_id: int, deadline_time: datetime, description: str):
     job_queue = context.job_queue
 
+# Напоминание за день до
     reminder_time = deadline_time - timedelta(days=1)
     job_queue.run_once(send_reminder, reminder_time, context=(chat_id, f"Завтра дедлайн: {description}"))
-
+    
+# Напоминание за 10 минут до
     reminder_time = deadline_time - timedelta(minutes=10)
     job_queue.run_once(send_reminder, reminder_time, context=(chat_id, f"Осталось 10 минут до дедлайна: {description}"))
 
